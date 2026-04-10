@@ -1,0 +1,50 @@
+version: '3.8'
+
+networks:
+  red-agentes:
+    driver: bridge
+
+services:
+  # Base de datos del Portero
+  bd-portero:
+    image: postgres:15-alpine
+    container_name: bd-portero
+    environment:
+      POSTGRES_DB: portero_local
+      POSTGRES_USER: portero
+      POSTGRES_PASSWORD: portero123
+    volumes:
+      - ./data/bd-portero:/var/lib/postgresql/data
+      - ./init/portero:/docker-entrypoint-initdb.d
+    networks:
+      - red-agentes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portero -d portero_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Agente Portero
+  agente-portero:
+    build: ./agentes/portero
+    container_name: agente-portero
+    depends_on:
+      bd-portero:
+        condition: service_healthy
+    environment:
+      # Configuración EMQX Cloud
+      MQTT_HOST: bbf91f19.ala.us-east-1.emqxsl.com
+      MQTT_PORT: 8883
+      MQTT_USERNAME: western_test
+      MQTT_PASSWORD: 123456789
+      MQTT_TLS: "true"
+      # Configuración Base de Datos
+      DB_HOST: bd-portero
+      DB_PORT: 5432
+      DB_NAME: portero_local
+      DB_USER: portero
+      DB_PASSWORD: portero123
+    networks:
+      - red-agentes
+    restart: unless-stopped
